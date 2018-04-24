@@ -17,8 +17,8 @@ AudioSession audioSession;
 
 typedef int Key;
 Key hotkey;
-
-void test();
+bool run = true;
+void keyPressed(KeyID id);
 void update();
 int main()
 {
@@ -69,20 +69,42 @@ int main()
 	hotkey.ID = 1;
 	hotkey.key = key;
 	hotkey.modifierKey = modifier;
-	keyboard.AddHotkey(hotkey, test);
+	keyboard.AddHotkey(hotkey.ID, hotkey.key, hotkey.modifierKey, keyPressed);
 
-	while (true)
+	keyboard.AddHotkey(2, 0x43, modifier, keyPressed);
+	keyboard.AddHotkey(3, 0x44, modifier, keyPressed);
+
+
+	while (run)
 	{
 		keyboard.Update();
 		Sleep(1);
 	}
+
+	keyboard.RemoveHotkey(1);
+	keyboard.RemoveHotkey(2);
+	keyboard.RemoveHotkey(3);
 	system("pause");
 	return 0;
 }
 
-void test()
+void keyPressed(KeyID id)
 {
-	std::cout << "Key pressed!\n";
+	if (id == 1)
+	{
+		const float vol = audioSession.GetVolume();
+		audioSession.SetVolume((vol + 10 > 100) ? 100 : vol + 10);
+	}
+	else if (id == 2)
+	{
+		const float vol = audioSession.GetVolume();
+		audioSession.SetVolume((vol - 10 < 0) ? 0 : vol - 10);
+	}
+	else if (id == 3)
+	{
+		run = false;
+	}
+	std::cout << id <<" Key pressed!\n";
 }
 void update()
 {

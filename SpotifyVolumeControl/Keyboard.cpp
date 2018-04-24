@@ -9,6 +9,8 @@ Keyboard::Keyboard()
 
 Keyboard::~Keyboard()
 {
+	for (auto const& v : hotkeyList)
+		RemoveHotkey(v.first);
 }
 
 void Keyboard::Update()
@@ -25,7 +27,7 @@ void Keyboard::Update()
 		{
 			if (value == v.first)
 			{
-				v.second();
+				v.second(v.first);
 			}
 		}
 	}
@@ -46,13 +48,14 @@ void Keyboard::Update()
 }
 
 
-void Keyboard::AddHotkey(const Hotkey& hotkey, const std::function<void(void)>&function)
+void Keyboard::AddHotkey(const KeyID id, Key key, ModifierKey modifier, const std::function<void(KeyID)>&function)
 {
-	RegisterHotKey(NULL, hotkey.ID, hotkey.modifierKey, hotkey.key);
-	hotkeyList.emplace(std::pair<int, std::function<void(void)>>(hotkey.ID, function));
+	RegisterHotKey(NULL, id, modifier, key);
+	hotkeyList.emplace(std::pair<KeyID, std::function<void(KeyID)>>(id, function));
 }
 
-void Keyboard::RemoveHotkey(const Hotkey& hotkey)
+void Keyboard::RemoveHotkey(const KeyID id)
 {
-	UnregisterHotKey(NULL, hotkey.ID);
+	UnregisterHotKey(NULL, id);
+	hotkeyList.erase(id);
 }

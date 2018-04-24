@@ -9,7 +9,8 @@ using std::vector;
 using std::map;
 using std::set;
 typedef int Key;
-
+typedef int ModifierKey;
+typedef int KeyID;
 struct Hotkey
 {
 	int ID;
@@ -23,11 +24,11 @@ public:
 	Keyboard();
 	~Keyboard();
 	void Update();
-	void AddHotkey(const Hotkey& hotkey, const std::function<void(void)>& function);
-	void RemoveHotkey(const Hotkey& hotkey);
+	void AddHotkey(const KeyID id, const Key key, const ModifierKey modifier, const std::function<void(KeyID)>& function);
+	void RemoveHotkey(const KeyID id);
 
 private:
-	map<int, std::function<void (void)>> hotkeyList;
+	map<KeyID, std::function<void (KeyID)>> hotkeyList;
 	static Key ConvertToKey(const LPARAM val);
 	static Key ConvertToModifier(const LPARAM val);
 };
