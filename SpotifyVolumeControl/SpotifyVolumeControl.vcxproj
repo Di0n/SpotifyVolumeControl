@@ -112,6 +112,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="coreaudio.cpp" />
+    <ClCompile Include="Keyboard.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="AudioSession.cpp" />
     <ClCompile Include="utils.cpp" />
@@ -119,6 +120,7 @@
   <ItemGroup>
     <ClInclude Include="coreaudio.h" />
     <ClInclude Include="AudioSession.h" />
+    <ClInclude Include="Keyboard.h" />
     <ClInclude Include="utils.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

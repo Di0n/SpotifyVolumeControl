@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <tchar.h>
+#include "keyboard.h"
 
 using std::string;
 
@@ -14,11 +15,15 @@ AudioSession audioSession;
 //HRESULT EnumerateSessions(IAudioSessionManager2* sessionManager);
 //HRESULT GetVolumeControl(IAudioSessionManager2* sessionManager, const DWORD pid, ISimpleAudioVolume** isav);
 
+typedef int Key;
+Key hotkey;
 
+void test();
+void update();
 int main()
 {
 	CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
-	
+
 	HRESULT hr = audioSession.CreateSession();
 	if (FAILED(hr))
 	{
@@ -29,7 +34,18 @@ int main()
 	const float volume = audioSession.GetVolume();
 	std::cout << "Volume: " << volume << std::endl;
 
+	Key modifier = MOD_ALT | MOD_NOREPEAT;
 
+	Key key = 0x42;
+	hotkey = key | modifier;
+
+	/*if (RegisterHotKey(NULL, 1, modifier, key))
+	{
+		std::cout << "Hotkey registered: " << hotkey << "\n";
+	}*/
+
+	//update();
+	//UnregisterHotKey(NULL, 1);
 	//IAudioSessionManager2* audioSessionManager = NULL;
 	////HRESULT hr = CreateSessionManager(&audioSessionManager);
 	//if (!FAILED(hr))
@@ -48,8 +64,51 @@ int main()
 	//	}
 	//}
 
+	Keyboard keyboard;
+	Hotkey hotkey;
+	hotkey.ID = 1;
+	hotkey.key = key;
+	hotkey.modifierKey = modifier;
+	keyboard.AddHotkey(hotkey, test);
+
+	while (true)
+	{
+		keyboard.Update();
+		Sleep(1);
+	}
 	system("pause");
 	return 0;
+}
+
+void test()
+{
+	std::cout << "Key pressed!\n";
+}
+void update()
+{
+	MSG msg = { 0 };
+	while (GetMessage(&msg, NULL, 0, 0) != 0)
+	{
+		if (msg.message == WM_HOTKEY)
+		{
+
+			std::cout << " Key Pressed\n";
+
+			Key key = (((Key)msg.lParam >> 16) & 0xFFFF);
+			Key modifier = ((Key)msg.lParam & 0xFFFF);
+			int c = key | modifier;
+			std::cout << key + modifier << std::endl;
+			switch (LOWORD(msg.wParam))
+			{
+				case 1:
+					std::cout << "Key: " << key << "\nModifier: " << modifier << std::endl;
+					return;
+				default:
+					break;
+			}
+			
+		}
+	}
 }
 //
 //HRESULT GetVolumeControl(IAudioSessionManager2* sessionManager, const LPWSTR programName, ISimpleAudioVolume** isav)
