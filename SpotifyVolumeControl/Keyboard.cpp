@@ -59,3 +59,13 @@ void Keyboard::RemoveHotkey(const KeyID id)
 	UnregisterHotKey(NULL, id);
 	hotkeyList.erase(id);
 }
+
+Key Keyboard::ConvertToKey(const LPARAM val)
+{
+	return (((Key)val >> 16) & 0xFFFF);
+}
+
+ModifierKey Keyboard::ConvertToModifier(const LPARAM val)
+{
+	return ((ModifierKey)val & 0xFFFF);
+}

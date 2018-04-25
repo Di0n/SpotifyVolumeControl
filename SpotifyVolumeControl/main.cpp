@@ -4,25 +4,44 @@
 #include <stdio.h>
 #include <string.h>
 #include <tchar.h>
+#include <gdiplus.h>
 #include "keyboard.h"
+#pragma comment(lib, "gdiplus.lib")
 
 using std::string;
-
-AudioSession audioSession;
-
+using namespace Gdiplus;
 //void PrintProcessInfo(DWORD);
 //HRESULT CreateSessionManager(IAudioSessionManager2** ppSessionManager);
 //HRESULT EnumerateSessions(IAudioSessionManager2* sessionManager);
 //HRESULT GetVolumeControl(IAudioSessionManager2* sessionManager, const DWORD pid, ISimpleAudioVolume** isav);
 
-typedef int Key;
-Key hotkey;
-bool run = true;
+#define VOLUME_UP_ID 1
+#define VOLUME_DOWN_ID 2
+
 void keyPressed(KeyID id);
 void update();
+
+AudioSession audioSession;
+bool run = true;
+//HDC hdc;
+
 int main()
 {
 	CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
+	Gdiplus::GdiplusStartupInput input = { 0 };
+	ULONG_PTR gdiplusToken;
+	GdiplusStartup(&gdiplusToken, &input, NULL);
+	
+	
+	/*image = (HBITMAP)LoadImageA(
+		NULL, 
+		"D:/Dion/Documents/GitHub/SpotifyVolumeControl/Debug/b35.jpg",
+		IMAGE_BITMAP,
+		0,0,
+		LR_DEFAULTSIZE | LR_LOADFROMFILE
+	);*/
+	
+	
 
 	HRESULT hr = audioSession.CreateSession();
 	if (FAILED(hr))
@@ -34,10 +53,10 @@ int main()
 	const float volume = audioSession.GetVolume();
 	std::cout << "Volume: " << volume << std::endl;
 
-	Key modifier = MOD_ALT | MOD_NOREPEAT;
+	/*Key modifier = MOD_ALT | MOD_NOREPEAT;
 
 	Key key = 0x42;
-	hotkey = key | modifier;
+	hotkey = key | modifier;*/
 
 	/*if (RegisterHotKey(NULL, 1, modifier, key))
 	{
@@ -65,14 +84,16 @@ int main()
 	//}
 
 	Keyboard keyboard;
-	Hotkey hotkey;
-	hotkey.ID = 1;
-	hotkey.key = key;
-	hotkey.modifierKey = modifier;
-	keyboard.AddHotkey(hotkey.ID, hotkey.key, hotkey.modifierKey, keyPressed);
 
-	keyboard.AddHotkey(2, 0x43, modifier, keyPressed);
-	keyboard.AddHotkey(3, 0x44, modifier, keyPressed);
+	ModifierKey modKey = MOD_ALT | MOD_NOREPEAT;
+	Key volumeUpKey = VK_UP; 
+	Key volumeDownKey = VK_DOWN;
+
+	keyboard.AddHotkey(VOLUME_UP_ID, volumeUpKey, modKey, keyPressed);
+	keyboard.AddHotkey(VOLUME_DOWN_ID, volumeDownKey, modKey, keyPressed);
+	keyboard.AddHotkey(3, 0x42, modKey, keyPressed);
+	//keyboard.AddHotkey(2, 0x43, modifier, keyPressed);
+	//keyboard.AddHotkey(3, 0x44, modifier, keyPressed);
 
 
 	while (run)
@@ -81,29 +102,77 @@ int main()
 		Sleep(1);
 	}
 
-	keyboard.RemoveHotkey(1);
-	keyboard.RemoveHotkey(2);
+	keyboard.RemoveHotkey(VOLUME_UP_ID);
+	keyboard.RemoveHotkey(VOLUME_DOWN_ID);
 	keyboard.RemoveHotkey(3);
+	GdiplusShutdown(gdiplusToken);
+
 	system("pause");
 	return 0;
 }
 
+Image* image;
+/*
+// Create a Pen object.
+Pen pen (Color(255, 255, 0, 0), 2);
+
+// Draw the original source image.
+graphics.DrawImage(&image, 10, 10);
+
+// Create a Rect object that specifies the destination of the image.
+Rect destRect(200, 50, 150, 75);
+
+// Draw the rectangle that bounds the image.
+graphics.DrawRectangle(&pen, destRect);
+
+// Draw the image.
+graphics.DrawImage(&image, destRect);*/
+void drawImage()
+{
+	//HDC hdc;// = HDC(0);
+	HDC hdc = GetDC(0);
+
+	Gdiplus::Graphics* graphics = Graphics::FromHDC(GetDC(0));
+
+
+	//Gdiplus::Image image (L"D:\\Dion\\Pictures\\imgOut2.png");
+	image = new Gdiplus::Image(L"D:\\Dion\\Pictures\\imgOut2.png");
+	//if (image.) std::cout << "";
+	//Gdiplus::Pen pen(Gdiplus::Color(255, 255, 0, 0), 2);
+	//graphics.DrawImage(&image, 10, 10);
+	Gdiplus::Rect rect(200, 50, 400, 400);
+	
+	//graphics.DrawRectangle(&pen, rect);
+	graphics->DrawImage(image, rect);
+
+}
 void keyPressed(KeyID id)
 {
-	if (id == 1)
+	switch (id)
+	{
+	case 1:
 	{
 		const float vol = audioSession.GetVolume();
 		audioSession.SetVolume((vol + 10 > 100) ? 100 : vol + 10);
+		drawImage();
 	}
-	else if (id == 2)
+		break;
+	case 2:
 	{
 		const float vol = audioSession.GetVolume();
 		audioSession.SetVolume((vol - 10 < 0) ? 0 : vol - 10);
 	}
-	else if (id == 3)
-	{
+		break;
+	case 3:
+	
+		delete image;
+		image = nullptr;
 		run = false;
+		break;
+	default:
+		break;
 	}
+
 	std::cout << id <<" Key pressed!\n";
 }
 void update()
