@@ -21,7 +21,7 @@ public:
 	/// <summary>
 	/// Set audio session volume
 	/// </summary>
-	void SetVolume(const float volume);
+	void SetVolume(float volume);
 	/// <summary>
 	/// Gets the current audio session volume
 	/// </summary>

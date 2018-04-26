@@ -116,12 +116,14 @@
     <ClCompile Include="main.cpp" />
     <ClCompile Include="AudioSession.cpp" />
     <ClCompile Include="utils.cpp" />
+    <ClCompile Include="volumebar.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="coreaudio.h" />
     <ClInclude Include="AudioSession.h" />
     <ClInclude Include="Keyboard.h" />
     <ClInclude Include="utils.h" />
+    <ClInclude Include="volumebar.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

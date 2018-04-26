@@ -18,9 +18,11 @@ HRESULT AudioSession::CreateSession()
 	return hr;
 }
 
-void AudioSession::SetVolume(const float volume)
+void AudioSession::SetVolume(float volume)
 {
-	if (audioControl != nullptr)
+	if (audioControl == nullptr) return;
+	if (volume > 100) volume = 100;
+	else if (volume < 0) volume = 0;
 	audioControl->SetMasterVolume((volume / 100), NULL);
 }
 
