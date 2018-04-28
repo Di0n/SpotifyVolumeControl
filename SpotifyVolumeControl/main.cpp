@@ -5,7 +5,6 @@
 #include <string.h>
 #include <tchar.h>
 #include <gdiplus.h>
-#include "keyboard.h"
 #include "volumebar.h"
 #pragma comment(lib, "gdiplus.lib")
 
@@ -17,12 +16,13 @@
 #define VOLUME_UP_ID 1
 #define VOLUME_DOWN_ID 2
 
+typedef int Key;
+typedef int ModifierKey;
+
 using namespace Gdiplus;
 using std::string;
 
 LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
-void keyPressed(KeyID id);
-void update();
 
 static TCHAR szWindowClass[] = _T("SpotifyVolumeControl");
 static TCHAR szTitle[] = _T("Spotify Volume Control");
@@ -45,8 +45,10 @@ BOOL GetMessage(LPMSG msg, HWND hwnd, UINT wMsgFilterMin, UINT wMsgFilterMax, UI
 }
 int CALLBACK WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpArg, int nCmdShow)
 {
+	CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
 	Gdiplus::GdiplusStartupInput input = { 0 };
 	GdiplusStartup(&gdiplusToken, &input, NULL);
+
 	WNDCLASSEX wcex;
 	wcex.cbSize = sizeof(WNDCLASSEX);
 	wcex.style = CS_HREDRAW | CS_VREDRAW;
@@ -68,13 +70,8 @@ int CALLBACK WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpArg, 
 	}
 
 	instance = hInstance;
-	/*CreateWindow(szWindowClass, szTitle, WS_OVERLAPPEDWINDOW,
-	CW_USEDEFAULT, CW_USEDEFAULT, 500, 100,
-	NULL, NULL, hInstance, NULL);*/
 
-	//int width = 64;
-	//int height = 140;
-	handle = CreateWindowEx(WS_EX_TOPMOST | WS_EX_TOOLWINDOW, szWindowClass, szTitle, WS_POPUP,
+	handle = CreateWindowEx(WS_EX_TOPMOST | WS_EX_TOOLWINDOW | WS_EX_COMPOSITED, szWindowClass, szTitle, WS_POPUP,
 		50, 50, WIDTH, HEIGHT,
 		NULL, NULL, hInstance, NULL);
 	if (!handle)
@@ -84,7 +81,8 @@ int CALLBACK WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpArg, 
 	}
 
 	SetWindowLong(handle, GWL_STYLE, 0);
-	ShowWindow(handle, nCmdShow);
+	//ShowWindow(handle, nCmdShow);
+	ShowWindow(handle, SW_HIDE);
 	UpdateWindow(handle);
 
 
@@ -117,22 +115,26 @@ int CALLBACK WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpArg, 
 	ModifierKey modKey = MOD_ALT | MOD_NOREPEAT;
 	Key volumeUpKey = VK_UP;
 	Key volumeDownKey = VK_DOWN;
-	BOOL r = RegisterHotKey(handle, VOLUME_UP_ID, modKey, volumeUpKey);
-	RegisterHotKey(handle, VOLUME_DOWN_ID, modKey, VK_DOWN);
+	if (!RegisterHotKey(handle, VOLUME_UP_ID, modKey, volumeUpKey))
+	{
+		std::cerr << "Failed to register hotkey.\n";
+		return 1;
+	}
+	if (!RegisterHotKey(handle, VOLUME_DOWN_ID, modKey, volumeDownKey))
+	{
+		std::cerr << "Failed to register hotkey.\n";
+		return 1;
+	}
+
 
 	UINT timeOut = 0;
 
-	RedrawWindow(handle, NULL, NULL, RDW_ERASE | RDW_INVALIDATE | RDW_INTERNALPAINT | RDW_INVALIDATE);
 	MSG msg;
 	while (GetMessage(&msg, NULL, 0, 0))
 	{
 		TranslateMessage(&msg);
 		DispatchMessage(&msg);
 	}
-
-	UnregisterHotKey(handle, VOLUME_UP_ID);
-	UnregisterHotKey(handle, VOLUME_DOWN_ID);
-	GdiplusShutdown(gdiplusToken);
 	return (int)msg.wParam;
 }
 /*
@@ -162,11 +164,10 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 
 		if (value == VOLUME_UP_ID)
 		{
-			//ShowWindow(handle, SW_SHOW);
+			// Volume omhoog
 			const float vol = audioSession.GetVolume();
 			if (vol == -1 || vol == 100) break;
 			audioSession.SetVolume(vol + 2);
-			// Volume omhoog
 		}
 		else if (value == VOLUME_DOWN_ID)
 		{
@@ -175,27 +176,30 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 			if (vol == -1 || vol == 0) break;
 			audioSession.SetVolume(vol - 2);
 		}
-		RECT rect;
 		//GetWindowRect(handle, &rect);
-		RedrawWindow(handle, NULL, NULL, RDW_ERASE | RDW_INVALIDATE | RDW_INTERNALPAINT | RDW_INVALIDATE);
+		if (!IsWindowVisible(handle))
+			ShowWindow(handle, SW_SHOW);
+		
+		RedrawWindow(handle, NULL, NULL, RDW_ERASE | RDW_INVALIDATE | RDW_INTERNALPAINT);
 	}
 	break;
 	case WM_PAINT:
 	{
+		if (!IsWindowVisible(handle)) break;
+
 		hdc = BeginPaint(hwnd, &ps);
 		Gdiplus::Graphics* graphics = Gdiplus::Graphics::FromHDC(hdc);
 		const int vol = audioSession.GetVolume();
 		if (vol != -1)
 			VolumeBar::DrawVolume(graphics, vol);
-		//drawVolumeBar(hdc);
-		//drawVolumeLevelBar(hdc, 30);
-		//drawVolumeText(hdc);
 		EndPaint(hwnd, &ps);
 	}
 	break;
 	case WM_CLOSE:
-		DestroyWindow(hwnd);
+		UnregisterHotKey(handle, VOLUME_UP_ID);
+		UnregisterHotKey(handle, VOLUME_DOWN_ID);
 		GdiplusShutdown(gdiplusToken);
+		DestroyWindow(hwnd);
 		break;
 	case WM_DESTROY:
 		PostQuitMessage(0);
@@ -206,125 +210,126 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 
 	return 0;
 }
-int mmain()
-{
-	CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
-	Gdiplus::GdiplusStartupInput input = { 0 };
-	ULONG_PTR gdiplusToken;
-	GdiplusStartup(&gdiplusToken, &input, NULL);
 
-
-	/*image = (HBITMAP)LoadImageA(
-		NULL,
-		"D:/Dion/Documents/GitHub/SpotifyVolumeControl/Debug/b35.jpg",
-		IMAGE_BITMAP,
-		0,0,
-		LR_DEFAULTSIZE | LR_LOADFROMFILE
-	);*/
-
-
-
-	HRESULT hr = audioSession.CreateSession();
-	if (FAILED(hr))
-	{
-		std::cout << "Error creating session\n";
-		return 1;
-	}
-
-	const float volume = audioSession.GetVolume();
-	std::cout << "Volume: " << volume << std::endl;
-
-	/*Key modifier = MOD_ALT | MOD_NOREPEAT;
-
-	Key key = 0x42;
-	hotkey = key | modifier;*/
-
-	/*if (RegisterHotKey(NULL, 1, modifier, key))
-	{
-		std::cout << "Hotkey registered: " << hotkey << "\n";
-	}*/
-
-
-	Keyboard keyboard;
-
-	ModifierKey modKey = MOD_ALT | MOD_NOREPEAT;
-	Key volumeUpKey = VK_UP;
-	Key volumeDownKey = VK_DOWN;
-
-	keyboard.AddHotkey(VOLUME_UP_ID, volumeUpKey, modKey, keyPressed);
-	keyboard.AddHotkey(VOLUME_DOWN_ID, volumeDownKey, modKey, keyPressed);
-	keyboard.AddHotkey(3, 0x42, modKey, keyPressed);
-	//keyboard.AddHotkey(2, 0x43, modifier, keyPressed);
-	//keyboard.AddHotkey(3, 0x44, modifier, keyPressed);
-
-
-	/*while (run)
-	{
-		keyboard.Update();
-		Sleep(1);
-	}*/
-
-	keyboard.RemoveHotkey(VOLUME_UP_ID);
-	keyboard.RemoveHotkey(VOLUME_DOWN_ID);
-	keyboard.RemoveHotkey(3);
-	GdiplusShutdown(gdiplusToken);
-
-	system("pause");
-	return 0;
-}
-
-void keyPressed(KeyID id)
-{
-	switch (id)
-	{
-	case 1:
-	{
-		const float vol = audioSession.GetVolume();
-		audioSession.SetVolume((vol + 10 > 100) ? 100 : vol + 10);
-		//drawImage();
-	}
-	break;
-	case 2:
-	{
-		const float vol = audioSession.GetVolume();
-		audioSession.SetVolume((vol - 10 < 0) ? 0 : vol - 10);
-	}
-	break;
-	case 3:
-		//run = false;
-		break;
-	default:
-		break;
-	}
-
-	std::cout << id << " Key pressed!\n";
-}
-void update()
-{
-	MSG msg = { 0 };
-	while (GetMessage(&msg, NULL, 0, 0) != 0)
-	{
-		if (msg.message == WM_HOTKEY)
-		{
-
-			std::cout << " Key Pressed\n";
-
-			Key key = (((Key)msg.lParam >> 16) & 0xFFFF);
-			Key modifier = ((Key)msg.lParam & 0xFFFF);
-			int c = key | modifier;
-			std::cout << key + modifier << std::endl;
-			switch (LOWORD(msg.wParam))
-			{
-			case 1:
-				std::cout << "Key: " << key << "\nModifier: " << modifier << std::endl;
-				return;
-			default:
-				break;
-			}
-
-		}
-	}
-}
+//int mmain()
+//{
+//	CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
+//	Gdiplus::GdiplusStartupInput input = { 0 };
+//	ULONG_PTR gdiplusToken;
+//	GdiplusStartup(&gdiplusToken, &input, NULL);
+//
+//
+//	/*image = (HBITMAP)LoadImageA(
+//		NULL,
+//		"D:/Dion/Documents/GitHub/SpotifyVolumeControl/Debug/b35.jpg",
+//		IMAGE_BITMAP,
+//		0,0,
+//		LR_DEFAULTSIZE | LR_LOADFROMFILE
+//	);*/
+//
+//
+//
+//	HRESULT hr = audioSession.CreateSession();
+//	if (FAILED(hr))
+//	{
+//		std::cout << "Error creating session\n";
+//		return 1;
+//	}
+//
+//	const float volume = audioSession.GetVolume();
+//	std::cout << "Volume: " << volume << std::endl;
+//
+//	/*Key modifier = MOD_ALT | MOD_NOREPEAT;
+//
+//	Key key = 0x42;
+//	hotkey = key | modifier;*/
+//
+//	/*if (RegisterHotKey(NULL, 1, modifier, key))
+//	{
+//		std::cout << "Hotkey registered: " << hotkey << "\n";
+//	}*/
+//
+//
+//	Keyboard keyboard;
+//
+//	ModifierKey modKey = MOD_ALT | MOD_NOREPEAT;
+//	Key volumeUpKey = VK_UP;
+//	Key volumeDownKey = VK_DOWN;
+//
+//	keyboard.AddHotkey(VOLUME_UP_ID, volumeUpKey, modKey, keyPressed);
+//	keyboard.AddHotkey(VOLUME_DOWN_ID, volumeDownKey, modKey, keyPressed);
+//	keyboard.AddHotkey(3, 0x42, modKey, keyPressed);
+//	//keyboard.AddHotkey(2, 0x43, modifier, keyPressed);
+//	//keyboard.AddHotkey(3, 0x44, modifier, keyPressed);
+//
+//
+//	/*while (run)
+//	{
+//		keyboard.Update();
+//		Sleep(1);
+//	}*/
+//
+//	keyboard.RemoveHotkey(VOLUME_UP_ID);
+//	keyboard.RemoveHotkey(VOLUME_DOWN_ID);
+//	keyboard.RemoveHotkey(3);
+//	GdiplusShutdown(gdiplusToken);
+//
+//	system("pause");
+//	return 0;
+//}
+//
+//void keyPressed(KeyID id)
+//{
+//	switch (id)
+//	{
+//	case 1:
+//	{
+//		const float vol = audioSession.GetVolume();
+//		audioSession.SetVolume((vol + 10 > 100) ? 100 : vol + 10);
+//		//drawImage();
+//	}
+//	break;
+//	case 2:
+//	{
+//		const float vol = audioSession.GetVolume();
+//		audioSession.SetVolume((vol - 10 < 0) ? 0 : vol - 10);
+//	}
+//	break;
+//	case 3:
+//		//run = false;
+//		break;
+//	default:
+//		break;
+//	}
+//
+//	std::cout << id << " Key pressed!\n";
+//}
+//void update()
+//{
+//	MSG msg = { 0 };
+//	while (GetMessage(&msg, NULL, 0, 0) != 0)
+//	{
+//		if (msg.message == WM_HOTKEY)
+//		{
+//
+//			std::cout << " Key Pressed\n";
+//
+//			Key key = (((Key)msg.lParam >> 16) & 0xFFFF);
+//			Key modifier = ((Key)msg.lParam & 0xFFFF);
+//			int c = key | modifier;
+//			std::cout << key + modifier << std::endl;
+//			switch (LOWORD(msg.wParam))
+//			{
+//			case 1:
+//				std::cout << "Key: " << key << "\nModifier: " << modifier << std::endl;
+//				return;
+//			default:
+//				break;
+//			}
+//
+//		}
+//	}
+//}
 
 
 //
