@@ -24,12 +24,14 @@ using std::string;
 
 LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
-static TCHAR szWindowClass[] = _T("SpotifyVolumeControl");
-static TCHAR szTitle[] = _T("Spotify Volume Control");
+static CONST TCHAR APP_UNIQUE_NAME[] = _T("com_anveon_apps_svc");
+static CONST TCHAR szWindowClass[] = _T("Spotify Volume Control");
+static CONST TCHAR szTitle[] = _T("Volume bar");
 
 ULONG_PTR gdiplusToken;
 HINSTANCE instance;
 HWND handle;
+HANDLE mutex;
 
 AudioSession audioSession;
 
@@ -45,6 +47,14 @@ BOOL GetMessage(LPMSG msg, HWND hwnd, UINT wMsgFilterMin, UINT wMsgFilterMax, UI
 }
 int CALLBACK WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpArg, int nCmdShow)
 {
+	mutex = CreateMutex(NULL, TRUE, APP_UNIQUE_NAME);
+	if (GetLastError() == ERROR_ALREADY_EXISTS)
+	{
+		MessageBox(NULL, _T("There is already an instance running of Spotify Volume Control."), szWindowClass, MB_OK | MB_ICONINFORMATION);
+		std::cerr << "There is already an instance running of Spotify Volume Control.\n";
+		return 0;
+	}
+
 	CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
 	Gdiplus::GdiplusStartupInput input = { 0 };
 	GdiplusStartup(&gdiplusToken, &input, NULL);
@@ -65,7 +75,8 @@ int CALLBACK WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpArg, 
 
 	if (!RegisterClassEx(&wcex))
 	{
-		MessageBox(NULL, _T("RegisterClassEx failed"), _T("Title"), NULL);
+		MessageBox(NULL, _T("RegisterClassEx failed."), szWindowClass, MB_OK | MB_ICONERROR);
+		std::cerr << "RegisterClassEx failed.\n";
 		return 1;
 	}
 
@@ -76,35 +87,15 @@ int CALLBACK WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpArg, 
 		NULL, NULL, hInstance, NULL);
 	if (!handle)
 	{
-		MessageBox(NULL, _T("Createwindow failed"), _T("Title"), NULL);
+		MessageBox(NULL, _T("Createwindow failed."), szWindowClass, MB_OK | MB_ICONERROR);
+		std::cerr << "Createwindow failed.\n";
 		return 1;
 	}
 
 	SetWindowLong(handle, GWL_STYLE, 0);
-	//ShowWindow(handle, nCmdShow);
 	ShowWindow(handle, SW_HIDE);
 	UpdateWindow(handle);
 
-
-
-	/*while (!exit)
-	{
-		if (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE) != 0)
-		{
-			TranslateMessage(&msg);
-			DispatchMessage(&msg);
-		}
-		Sleep(1);
-	}*/
-
-	/*DWORD waitTime = 1000;
-	while (MsgWaitForMultipleObjects(0, NULL, FALSE, waitTime, QS_ALLINPUT) == WAIT_OBJECT_0)
-	{
-		while (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE))
-		{
-
-		}
-	}*/
 
 	HRESULT hr = audioSession.CreateSession();
 	if (FAILED(hr))
@@ -179,7 +170,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 		//GetWindowRect(handle, &rect);
 		if (!IsWindowVisible(handle))
 			ShowWindow(handle, SW_SHOW);
-		
+
 		RedrawWindow(handle, NULL, NULL, RDW_ERASE | RDW_INVALIDATE | RDW_INTERNALPAINT);
 	}
 	break;
@@ -199,6 +190,8 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 		UnregisterHotKey(handle, VOLUME_UP_ID);
 		UnregisterHotKey(handle, VOLUME_DOWN_ID);
 		GdiplusShutdown(gdiplusToken);
+		ReleaseMutex(mutex);
+		CloseHandle(mutex);
 		DestroyWindow(hwnd);
 		break;
 	case WM_DESTROY:
