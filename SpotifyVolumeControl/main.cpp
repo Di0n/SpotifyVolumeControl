@@ -92,7 +92,7 @@ int CALLBACK WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpArg, 
 
 	instance = hInstance;
 
-	handle = CreateWindowEx(WS_EX_TOPMOST | WS_EX_TOOLWINDOW | WS_EX_COMPOSITED, SZ_WINDOW_CLASS, SZ_TITLE, WS_POPUP,
+	handle = CreateWindowEx(WS_EX_TOPMOST | WS_EX_TOOLWINDOW | WS_EX_COMPOSITED | WS_EX_NOACTIVATE, SZ_WINDOW_CLASS, SZ_TITLE, WS_POPUP,
 		POSITION_X, POSITION_Y, WIDTH, HEIGHT,
 		NULL, NULL, hInstance, NULL);
 	if (!handle)
@@ -103,7 +103,6 @@ int CALLBACK WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpArg, 
 	}
 
 	SetWindowLong(handle, GWL_STYLE, 0);
-	ShowWindow(handle, SW_HIDE);
 	UpdateWindow(handle);
 
 	HRESULT hr = audioSession.CreateSession();
@@ -190,7 +189,7 @@ void OnHotKeyPressed(WORD keyID)
 	else return;
 
 	if (!IsWindowVisible(handle))
-		ShowWindow(handle, SW_SHOW);
+		ShowWindow(handle, SW_SHOWNA);
 
 	RedrawWindow(handle, NULL, NULL, RDW_ERASE | RDW_INVALIDATE | RDW_INTERNALPAINT);
 	timerPtr = SetTimer(handle, TIMER_ID, VOLUME_SHOW_TIME, static_cast<TIMERPROC>(ShowTimer));
