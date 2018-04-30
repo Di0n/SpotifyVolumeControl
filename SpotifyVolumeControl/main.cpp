@@ -1,319 +1,219 @@
 #include <Windows.h>
-#include <Psapi.h>
 #include <iostream>
 #include <stdio.h>
 #include <string.h>
 #include <tchar.h>
-#include <audiopolicy.h>
-#include <mmdeviceapi.h>
+#include <gdiplus.h>
+#include "AudioSession.h"
+#include "volumebar.h"
+#pragma comment(lib, "gdiplus.lib")
 
+#define APP_UNIQUE_NAME "com_anveon_apps_svc"
+#define SZ_WINDOW_CLASS "Spotify Volume Control"
+#define SZ_TITLE		"Volume bar"
+
+#define VOLUME_SHOW_TIME 3000
+#define POSITION_X 50
+#define POSITION_Y 50
+#define WIDTH 66
+#define HEIGHT 144
+#define VOLUME_WIDTH 20
+#define VOLUME_HEIGHT 84
+#define VOLUME_UP_ID 1
+#define VOLUME_DOWN_ID 2
+#define TIMER_ID 1
+
+typedef int Key;
+typedef int ModifierKey;
+
+using namespace Gdiplus;
 using std::string;
 
-#ifndef SAFE_RELEASE
-#define SAFE_RELEASE(x) \
-   if(x != NULL)        \
-   {                    \
-      x->Release();     \
-      x = NULL;         \
-   }
-#endif
+LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
+VOID CALLBACK ShowTimer(HWND hwnd, UINT msg, UINT_PTR idEvent, DWORD dwTime);
+void OnHotKeyPressed(WORD keyID);
+void OnPaint(HWND hwnd);
 
-#define CHECK_HR(x) if (FAILED(x)) { goto done; }
+//static CONST TCHAR APP_UNIQUE_NAME[] = _T("com_anveon_apps_svc");
+//static CONST TCHAR szWindowClass[] = _T("Spotify Volume Control");
+//static CONST TCHAR szTitle[] = _T("Volume bar");
 
-void PrintProcessInfo(DWORD);
-HRESULT CreateSessionManager(IAudioSessionManager2** ppSessionManager);
-HRESULT EnumerateSessions(IAudioSessionManager2* sessionManager);
-HRESULT GetVolumeControl(IAudioSessionManager2* sessionManager, const DWORD pid, ISimpleAudioVolume** isav);
+UINT_PTR		timerPtr;
+ULONG_PTR		gdiplusToken;
+HINSTANCE		instance;
+HWND			handle;
+HANDLE			mutex;
+AudioSession	audioSession;
 
 
-int main()
+BOOL GetMessage(LPMSG msg, HWND hwnd, UINT wMsgFilterMin, UINT wMsgFilterMax, UINT timeOut)
 {
-	IAudioSessionManager2* audioSessionManager = NULL;
-	HRESULT hr = CreateSessionManager(&audioSessionManager);
-	if (!FAILED(hr))
+	UINT_PTR timerID = NULL;
+	if (timeOut > 0)
+		timerID = SetTimer(NULL, NULL, timeOut, NULL);
+	BOOL result = (timeOut > 0 && timerID == NULL) ? TRUE : GetMessage(msg, hwnd, wMsgFilterMin, wMsgFilterMax); // Als de timer niet is aangemaakt Wacht dan niet op message
+	if (timerID != NULL) KillTimer(NULL, timerID);
+	return result;
+}
+int CALLBACK WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpArg, int nCmdShow)
+{
+	mutex = CreateMutex(NULL, TRUE, APP_UNIQUE_NAME);
+	if (GetLastError() == ERROR_ALREADY_EXISTS)
 	{
-		const DWORD pid = 4944;
-		
-		ISimpleAudioVolume* volume = NULL;
-		hr = GetVolumeControl(audioSessionManager, pid, &volume);
-		
-		if (!FAILED(hr))
-		{
-			float currentVolume;
-			hr = volume->GetMasterVolume(&currentVolume);
-			if (!FAILED(hr))
-				volume->SetMasterVolume(currentVolume+0.2f, NULL);
-		}
+		MessageBox(NULL, _T("There is already an instance running of Spotify Volume Control."), SZ_WINDOW_CLASS, MB_OK | MB_ICONINFORMATION);
+		std::cerr << "There is already an instance running of Spotify Volume Control.\n";
+		return 0;
 	}
 
-	system("pause");
+	CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
+	Gdiplus::GdiplusStartupInput input = { 0 };
+	GdiplusStartup(&gdiplusToken, &input, NULL);
+
+	WNDCLASSEX wcex;
+	wcex.cbSize = sizeof(WNDCLASSEX);
+	wcex.style = CS_HREDRAW | CS_VREDRAW;
+	wcex.lpfnWndProc = WndProc;
+	wcex.cbClsExtra = 0;
+	wcex.cbWndExtra = 0;
+	wcex.hInstance = hInstance;
+	wcex.hIcon = LoadIcon(hInstance, MAKEINTRESOURCE(IDI_APPLICATION));
+	wcex.hCursor = LoadCursor(NULL, IDC_ARROW);
+	wcex.hbrBackground = (HBRUSH)(BLACK_PEN + 1);
+	wcex.lpszMenuName = NULL;
+	wcex.lpszClassName = SZ_WINDOW_CLASS;
+	wcex.hIconSm = LoadIcon(wcex.hInstance, MAKEINTRESOURCE(IDI_APPLICATION));
+
+	if (!RegisterClassEx(&wcex))
+	{
+		MessageBox(NULL, _T("RegisterClassEx failed."), SZ_WINDOW_CLASS, MB_OK | MB_ICONERROR);
+		std::cerr << "RegisterClassEx failed.\n";
+		return 1;
+	}
+
+	instance = hInstance;
+
+	handle = CreateWindowEx(WS_EX_TOPMOST | WS_EX_TOOLWINDOW | WS_EX_COMPOSITED, SZ_WINDOW_CLASS, SZ_TITLE, WS_POPUP,
+		POSITION_X, POSITION_Y, WIDTH, HEIGHT,
+		NULL, NULL, hInstance, NULL);
+	if (!handle)
+	{
+		MessageBox(NULL, _T("Createwindow failed."), SZ_WINDOW_CLASS, MB_OK | MB_ICONERROR);
+		std::cerr << "Createwindow failed.\n";
+		return 1;
+	}
+
+	SetWindowLong(handle, GWL_STYLE, 0);
+	ShowWindow(handle, SW_HIDE);
+	UpdateWindow(handle);
+
+	HRESULT hr = audioSession.CreateSession();
+	if (FAILED(hr))
+	{
+		MessageBox(NULL, _T("Error finding running Spotify instance."), SZ_WINDOW_CLASS, MB_OK | MB_ICONERROR);
+		std::cerr << "Error finding running Spotify instance.\n";
+		return 1;
+	}
+
+	ModifierKey modKey = MOD_ALT;
+	Key volumeUpKey = VK_UP;
+	Key volumeDownKey = VK_DOWN;
+
+	if (!RegisterHotKey(handle, VOLUME_UP_ID, modKey, volumeUpKey))
+	{
+		std::cerr << "Failed to register hotkey.\n";
+		return 1;
+	}
+	if (!RegisterHotKey(handle, VOLUME_DOWN_ID, modKey, volumeDownKey))
+	{
+		std::cerr << "Failed to register hotkey.\n";
+		return 1;
+	}
+
+	MSG msg;
+	while (GetMessage(&msg, NULL, 0, 0))
+	{
+		TranslateMessage(&msg);
+		DispatchMessage(&msg);
+	}
+
+	return (int)msg.wParam;
+}
+
+LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
+{
+	switch (msg)
+	{
+	case WM_HOTKEY:
+		OnHotKeyPressed(LOWORD(wParam));
+		break;
+	case WM_PAINT:
+		OnPaint(hwnd);
+		break;
+	case WM_CLOSE:
+		DestroyWindow(hwnd);
+		break;
+	case WM_DESTROY:
+		UnregisterHotKey(handle, VOLUME_UP_ID);
+		UnregisterHotKey(handle, VOLUME_DOWN_ID);
+		GdiplusShutdown(gdiplusToken);
+		ReleaseMutex(mutex);
+		CloseHandle(mutex);
+		if (timerPtr != NULL)
+			KillTimer(handle, timerPtr);
+		PostQuitMessage(0);
+		break;
+	default:
+		return DefWindowProc(hwnd, msg, wParam, lParam);
+	}
+
 	return 0;
 }
 
-HRESULT GetVolumeControl(IAudioSessionManager2* sessionManager, const DWORD pid, ISimpleAudioVolume** isav)
+void OnHotKeyPressed(WORD keyID)
 {
-	HRESULT hr = S_OK;
-	IAudioSessionEnumerator* sessionEnumerator = NULL;
-	hr = sessionManager->GetSessionEnumerator(&sessionEnumerator);
-
-	if (FAILED(hr))
+	if (keyID == VOLUME_UP_ID)
 	{
-		SAFE_RELEASE(sessionEnumerator);
-		return hr;
+		// Volume omhoog
+		const float vol = audioSession.GetVolume();
+		if (vol == -1) return;
+		if (vol < 100)
+			audioSession.SetVolume(vol + 2);
 	}
-
-	int sessionCount = 0;
-	hr = sessionEnumerator->GetCount(&sessionCount);
-
-	if (FAILED(hr))
+	else if (keyID == VOLUME_DOWN_ID)
 	{
-		SAFE_RELEASE(sessionEnumerator);
-		return hr;
+		// Volume omlaag
+		const float vol = audioSession.GetVolume();
+		if (vol == -1) return;
+		if (vol > 0)
+			audioSession.SetVolume(vol - 2);
 	}
+	else return;
 
-	bool found = false;
-	for (int i = 0; i < sessionCount && !found; i++)
-	{
-		IAudioSessionControl* sessionControl = NULL;
-		IAudioSessionControl2* sessionControl2 = NULL;
+	if (!IsWindowVisible(handle))
+		ShowWindow(handle, SW_SHOW);
 
-		hr = sessionEnumerator->GetSession(i, &sessionControl);
-		hr = sessionControl->QueryInterface(__uuidof(IAudioSessionControl2), (void**)&sessionControl2);
-
-		DWORD procID;
-		sessionControl2->GetProcessId(&procID);
-		std::cout << procID << std::endl;
-
-		if (procID == pid)
-		{
-			std::cout << "Found" << std::endl;
-			found = true;
-			ISimpleAudioVolume* _isav;
-			hr = sessionControl2->QueryInterface(__uuidof(ISimpleAudioVolume), (void**)&_isav);
-			*(isav) = _isav;
-			(*isav)->AddRef();
-
-			SAFE_RELEASE(_isav);
-		}
-		SAFE_RELEASE(sessionControl);
-		SAFE_RELEASE(sessionControl2);
-	}
-	SAFE_RELEASE(sessionEnumerator);
-	return hr;
+	RedrawWindow(handle, NULL, NULL, RDW_ERASE | RDW_INVALIDATE | RDW_INTERNALPAINT);
+	timerPtr = SetTimer(handle, TIMER_ID, VOLUME_SHOW_TIME, static_cast<TIMERPROC>(ShowTimer));
 }
 
-HRESULT EnumerateSessions(IAudioSessionManager2* sessionManager)
+void OnPaint(HWND hwnd)
 {
-	HRESULT hr = S_OK;
-	std::cout << "Enum sessions\n";
-	IAudioSessionEnumerator* sessionEnumerator = NULL;
-	hr = sessionManager->GetSessionEnumerator(&sessionEnumerator);
+	if (!IsWindowVisible(handle)) return;
 
-	int sessionCount = 0;
+	PAINTSTRUCT ps;
+	HDC hdc = BeginPaint(hwnd, &ps);
+	Gdiplus::Graphics* graphics = Gdiplus::Graphics::FromHDC(hdc);
 
-	hr = sessionEnumerator->GetCount(&sessionCount);
-
-	LPWSTR session = NULL;
-	IAudioSessionControl* sessionControl = NULL;
-	IAudioSessionControl2* sessionControl2 = NULL;
-
-	for (int i = 0; i < sessionCount; i++)
-	{
-		hr = sessionEnumerator->GetSession(i, &sessionControl);
-		hr = sessionControl->QueryInterface(__uuidof(IAudioSessionControl2), (void**)&sessionControl2);
-		
-		hr = sessionControl->GetDisplayName(&session);
-
-		DWORD procID;
-		sessionControl2->GetProcessId(&procID);
-		LPWSTR sessionIdentifier = NULL;
-		sessionControl2->GetSessionIdentifier(&sessionIdentifier);
-
-		wprintf_s(L"Session Name: %s\n", session);
-		std::cout << "Proc ID: " << procID << std::endl;
-
-		CoTaskMemFree(sessionIdentifier);
-	}
-
-	CoTaskMemFree(session);
-	SAFE_RELEASE(sessionControl2);
-	SAFE_RELEASE(sessionControl);
-	SAFE_RELEASE(sessionEnumerator);
-
-	return hr;
-}
-HRESULT CreateSessionManager(IAudioSessionManager2** ppSessionManager)
-{
-	HRESULT hr = S_OK;
-
-	IMMDevice* pDevice = NULL;
-	IMMDeviceEnumerator* pEnumerator = NULL;
-	IAudioSessionManager2* pSessionManager = NULL;
-
-	CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
-
-	// Create the device enumerator.
-	hr = CoCreateInstance(
-		__uuidof(MMDeviceEnumerator),
-		NULL, CLSCTX_ALL,
-		__uuidof(IMMDeviceEnumerator),
-		(void**)&pEnumerator);
-	
-	if (FAILED(hr))
-	{
-		SAFE_RELEASE(pEnumerator);
-		return hr;
-	}
-
-	// Get the default audio device.
-	hr = pEnumerator->GetDefaultAudioEndpoint(
-		eRender, eConsole, &pDevice);
-
-	if (FAILED(hr))
-	{
-		SAFE_RELEASE(pEnumerator);
-		SAFE_RELEASE(pDevice);
-		
-		return hr;
-	}
-
-	// Get the session manager.
-	hr = pDevice->Activate(
-		__uuidof(IAudioSessionManager2), CLSCTX_ALL,
-		NULL, (void**)&pSessionManager);
-
-	if (FAILED(hr))
-	{
-		SAFE_RELEASE(pEnumerator);
-		SAFE_RELEASE(pDevice);
-		SAFE_RELEASE(pSessionManager);
-		
-		return hr;
-	}
-	
-	// Return the pointer to the caller.
-	*(ppSessionManager) = pSessionManager;
-	(*ppSessionManager)->AddRef();
-
-	// Clean up.
-	SAFE_RELEASE(pSessionManager);
-	SAFE_RELEASE(pEnumerator);
-	SAFE_RELEASE(pDevice);
-
-	return hr;
+	const int vol = audioSession.GetVolume();
+	if (vol != -1)
+		VolumeBar::DrawVolume(graphics, vol);
+	EndPaint(hwnd, &ps);
 }
 
-void PrintProcessInfo(DWORD processID)
+VOID CALLBACK ShowTimer(HWND hwnd, UINT msg, UINT_PTR idEvent, DWORD dwTime)
 {
-	TCHAR szProcessName[MAX_PATH] = TEXT("<unknown>");
-
-	// Get a handle to the process.
-
-	HANDLE hProcess = OpenProcess(PROCESS_QUERY_INFORMATION |
-		PROCESS_VM_READ,
-		FALSE, processID);
-
-	// Get the process name.
-
-	if (NULL != hProcess)
-	{
-		HMODULE hMod;
-		DWORD cbNeeded;
-
-		if (EnumProcessModules(hProcess, &hMod, sizeof(hMod),
-			&cbNeeded))
-		{
-			GetModuleBaseName(hProcess, hMod, szProcessName,
-				sizeof(szProcessName) / sizeof(TCHAR));
-		}
-	}
-
-	// Print the process name and identifier.
-	
-	_tprintf(TEXT("%s  (PID: %u)\n"), szProcessName, processID);
-
-	// Release the handle to the process.
-
-	CloseHandle(hProcess);
-}
-HRESULT GetAudioSessionPID(IAudioSessionManager2* sessionManager, const LPWSTR& sessionName, DWORD* pid)
-{
-	HRESULT hr = S_OK;
-	*pid = 0;
-
-	IAudioSessionEnumerator* sessionEnumerator = NULL;
-	hr = sessionManager->GetSessionEnumerator(&sessionEnumerator);
-	std::cout << "HEr 2\n";
-	if (FAILED(hr))
-	{
-		SAFE_RELEASE(sessionEnumerator);
-		return hr;
-	}
-	std::cout << "HEr 2\n";
-	int sessionCount = 0;
-	hr = sessionEnumerator->GetCount(&sessionCount);
-
-	if (FAILED(hr))
-	{
-		SAFE_RELEASE(sessionEnumerator);
-		return hr;
-	}
-
-	LPWSTR wstrSessionName = NULL;
-	IAudioSessionControl* sessionControl = NULL;
-	IAudioSessionControl2* sessionControl2 = NULL;
-
-	bool found = false;
-	for (int i = 0; i < sessionCount && !found; i++)
-	{
-		hr = sessionEnumerator->GetSession(i, &sessionControl);
-		hr = sessionControl->QueryInterface(__uuidof(IAudioSessionControl2), (void**)&sessionControl2);
-
-		hr = sessionControl->GetDisplayName(&wstrSessionName);
-
-		DWORD procID;
-		sessionControl2->GetProcessId(&procID);
-		LPWSTR sessionIdentifier = NULL;
-		sessionControl2->GetSessionIdentifier(&sessionIdentifier);
-		if (wcsstr(sessionIdentifier, sessionName) != 0)
-		{
-			found = true;
-			*pid = procID;
-		}
-
-		GUID guid;
-		LPOLESTR guidString;
-
-		sessionControl2->GetGroupingParam(&guid);
-		StringFromCLSID(guid, &guidString);
-		wprintf_s(L"Session Name: %s\nIdentifier: %s\n", wstrSessionName, sessionIdentifier);
-		std::cout << "Proc ID: " << procID << std::endl;
-		std::cout << guidString << std::endl;
-
-
-		if (found)
-		{
-			ISimpleAudioVolume* v = NULL;
-			sessionControl->QueryInterface(__uuidof(ISimpleAudioVolume), (void**)&v);
-			float level;
-			v->SetMasterVolume(1.0f, NULL);
-			//sessionControl2->
-				//std::cout << "LEvel: " << level << std::endl;
-				/*hr = sessionManager->GetSimpleAudioVolume(&guid, TRUE, &v);
-				LPCGUID eventContext = NULL;
-				std::cout << "FOR: " << procID << std::endl;
-				float level;
-				v->GetMasterVolume(&level);
-				std::cout << "LEvel: " << level << std::endl;*/
-		}
-		CoTaskMemFree(sessionIdentifier);
-		CoTaskMemFree(guidString);
-	}
-
-	CoTaskMemFree(wstrSessionName);
-	SAFE_RELEASE(sessionControl2);
-	SAFE_RELEASE(sessionControl);
-	SAFE_RELEASE(sessionEnumerator);
-
-	return hr;
+	if (idEvent != TIMER_ID) return;
+	if (!IsWindowVisible(handle)) return;
+	ShowWindow(handle, SW_HIDE);
+	KillTimer(handle, idEvent);
 }
