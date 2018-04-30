@@ -14,8 +14,8 @@ void DrawVolumeBar(Gdiplus::Graphics* graphics)
 void DrawVolumeLevel(Gdiplus::Graphics* graphics, const int level)
 {
 	if (level < 0 || level > 100) return;
-	const float s = (float)VOLUME_HEIGHT / (float)100;
-	Rect rect(WIDTH / 3, HEIGHT / 6, VOLUME_WIDTH, VOLUME_HEIGHT - (s * level));
+	const float ratio = (float)VOLUME_HEIGHT / (float)100;
+	Rect rect(WIDTH / 3, HEIGHT / 6, VOLUME_WIDTH, VOLUME_HEIGHT - (ratio * level));
 
 	Pen pen(Color::Gray, 1.0f);
 	graphics->DrawRectangle(&pen, rect);

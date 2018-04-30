@@ -213,13 +213,12 @@ HRESULT CoreAudio::GetAudioSessionPID(IAudioSessionManager2* sessionManager, con
 
 	IAudioSessionEnumerator* sessionEnumerator = NULL;
 	hr = sessionManager->GetSessionEnumerator(&sessionEnumerator);
-	std::cout << "HEr 2\n";
 	if (FAILED(hr))
 	{
 		SAFE_RELEASE(sessionEnumerator);
 		return hr;
 	}
-	std::cout << "HEr 2\n";
+
 	int sessionCount = 0;
 	hr = sessionEnumerator->GetCount(&sessionCount);
 
@@ -260,13 +259,13 @@ HRESULT CoreAudio::GetAudioSessionPID(IAudioSessionManager2* sessionManager, con
 		std::cout << "Proc ID: " << procID << std::endl;
 		std::cout << guidString << std::endl;
 
-
 		if (found)
 		{
-			ISimpleAudioVolume* v = NULL;
-			sessionControl->QueryInterface(__uuidof(ISimpleAudioVolume), (void**)&v);
-			float level;
-			v->SetMasterVolume(1.0f, NULL);
+
+			//ISimpleAudioVolume* v = NULL;
+			//sessionControl->QueryInterface(__uuidof(ISimpleAudioVolume), (void**)&v);
+			//float level;
+			//v->SetMasterVolume(1.0f, NULL);
 			//sessionControl2->
 				//std::cout << "LEvel: " << level << std::endl;
 				/*hr = sessionManager->GetSimpleAudioVolume(&guid, TRUE, &v);
