@@ -12,6 +12,9 @@
 #define SZ_WINDOW_CLASS "Spotify Volume Control"
 #define SZ_TITLE		"Volume bar"
 
+#define VOLUME_SHOW_TIME 3000
+#define POSITION_X 50
+#define POSITION_Y 50
 #define WIDTH 66
 #define HEIGHT 144
 #define VOLUME_WIDTH 20
@@ -90,7 +93,7 @@ int CALLBACK WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpArg, 
 	instance = hInstance;
 
 	handle = CreateWindowEx(WS_EX_TOPMOST | WS_EX_TOOLWINDOW | WS_EX_COMPOSITED, SZ_WINDOW_CLASS, SZ_TITLE, WS_POPUP,
-		50, 50, WIDTH, HEIGHT,
+		POSITION_X, POSITION_Y, WIDTH, HEIGHT,
 		NULL, NULL, hInstance, NULL);
 	if (!handle)
 	{
@@ -103,7 +106,6 @@ int CALLBACK WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpArg, 
 	ShowWindow(handle, SW_HIDE);
 	UpdateWindow(handle);
 
-
 	HRESULT hr = audioSession.CreateSession();
 	if (FAILED(hr))
 	{
@@ -111,9 +113,11 @@ int CALLBACK WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpArg, 
 		std::cerr << "Error finding running Spotify instance.\n";
 		return 1;
 	}
-	ModifierKey modKey = MOD_ALT | MOD_NOREPEAT;
+
+	ModifierKey modKey = MOD_ALT;
 	Key volumeUpKey = VK_UP;
 	Key volumeDownKey = VK_DOWN;
+
 	if (!RegisterHotKey(handle, VOLUME_UP_ID, modKey, volumeUpKey))
 	{
 		std::cerr << "Failed to register hotkey.\n";
@@ -171,22 +175,25 @@ void OnHotKeyPressed(WORD keyID)
 	{
 		// Volume omhoog
 		const float vol = audioSession.GetVolume();
-		if (vol == -1 || vol == 100) return;
-		audioSession.SetVolume(vol + 2);
+		if (vol == -1) return;
+		if (vol < 100)
+			audioSession.SetVolume(vol + 2);
 	}
 	else if (keyID == VOLUME_DOWN_ID)
 	{
 		// Volume omlaag
 		const float vol = audioSession.GetVolume();
-		if (vol == -1 || vol == 0) return;
-		audioSession.SetVolume(vol - 2);
+		if (vol == -1) return;
+		if (vol > 0)
+			audioSession.SetVolume(vol - 2);
 	}
 	else return;
+
 	if (!IsWindowVisible(handle))
 		ShowWindow(handle, SW_SHOW);
 
 	RedrawWindow(handle, NULL, NULL, RDW_ERASE | RDW_INVALIDATE | RDW_INTERNALPAINT);
-	timerPtr = SetTimer(handle, TIMER_ID, 3000, static_cast<TIMERPROC>(ShowTimer));
+	timerPtr = SetTimer(handle, TIMER_ID, VOLUME_SHOW_TIME, static_cast<TIMERPROC>(ShowTimer));
 }
 
 void OnPaint(HWND hwnd)
