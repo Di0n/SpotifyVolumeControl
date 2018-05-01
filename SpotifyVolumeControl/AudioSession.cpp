@@ -11,7 +11,7 @@ HRESULT AudioSession::CreateSession()
 {
 	HRESULT hr = CoreAudio::CreateSessionManager(&sessionManager);
 	if (FAILED(hr) || sessionManager == nullptr)
-		return hr;
+		return !FAILED(hr) ? E_POINTER : hr;
 
 	hr = CoreAudio::GetVolumeControl(sessionManager, SPOTIFY_EXECUTABLE, &audioControl);
 

@@ -6,6 +6,7 @@
 #include <gdiplus.h>
 #include "AudioSession.h"
 #include "volumebar.h"
+#include "utils.h"
 #pragma comment(lib, "gdiplus.lib")
 
 #define APP_UNIQUE_NAME "com_anveon_apps_svc"
@@ -23,8 +24,6 @@
 #define VOLUME_DOWN_ID 2
 #define TIMER_ID 1
 
-typedef int Key;
-typedef int ModifierKey;
 
 using namespace Gdiplus;
 using std::string;
@@ -92,7 +91,7 @@ int CALLBACK WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpArg, 
 
 	instance = hInstance;
 
-	handle = CreateWindowEx(WS_EX_TOPMOST | WS_EX_TOOLWINDOW | WS_EX_COMPOSITED, SZ_WINDOW_CLASS, SZ_TITLE, WS_POPUP,
+	handle = CreateWindowEx(WS_EX_TOPMOST | WS_EX_TOOLWINDOW | WS_EX_COMPOSITED | WS_EX_NOACTIVATE, SZ_WINDOW_CLASS, SZ_TITLE, WS_POPUP,
 		POSITION_X, POSITION_Y, WIDTH, HEIGHT,
 		NULL, NULL, hInstance, NULL);
 	if (!handle)
@@ -103,7 +102,6 @@ int CALLBACK WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpArg, 
 	}
 
 	SetWindowLong(handle, GWL_STYLE, 0);
-	ShowWindow(handle, SW_HIDE);
 	UpdateWindow(handle);
 
 	HRESULT hr = audioSession.CreateSession();
@@ -189,8 +187,9 @@ void OnHotKeyPressed(WORD keyID)
 	}
 	else return;
 
+	if (Utils::IsFullscreenMaximized(handle)) return;
 	if (!IsWindowVisible(handle))
-		ShowWindow(handle, SW_SHOW);
+		ShowWindow(handle, SW_SHOWNA);
 
 	RedrawWindow(handle, NULL, NULL, RDW_ERASE | RDW_INVALIDATE | RDW_INTERNALPAINT);
 	timerPtr = SetTimer(handle, TIMER_ID, VOLUME_SHOW_TIME, static_cast<TIMERPROC>(ShowTimer));
@@ -217,3 +216,5 @@ VOID CALLBACK ShowTimer(HWND hwnd, UINT msg, UINT_PTR idEvent, DWORD dwTime)
 	ShowWindow(handle, SW_HIDE);
 	KillTimer(handle, idEvent);
 }
+
+
