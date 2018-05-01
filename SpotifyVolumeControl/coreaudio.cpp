@@ -96,7 +96,6 @@ HRESULT CoreAudio::GetVolumeControl(IAudioSessionManager2* sessionManager, const
 		std::cout << procID << std::endl;
 		if (procID == pid)
 		{
-			std::cout << "Found" << std::endl;
 			found = true;
 			ISimpleAudioVolume* _isav;
 			hr = sessionControl2->QueryInterface(__uuidof(ISimpleAudioVolume), (void**)&_isav);
@@ -147,7 +146,6 @@ HRESULT CoreAudio::GetVolumeControl(IAudioSessionManager2* sessionManager, const
 		
 		if (wcsstr(sessionIdentifier, programName) != 0)
 		{
-			std::cout << "Found" << std::endl;
 			found = true;
 			ISimpleAudioVolume* _isav;
 			hr = sessionControl2->QueryInterface(__uuidof(ISimpleAudioVolume), (void**)&_isav);
@@ -162,7 +160,7 @@ HRESULT CoreAudio::GetVolumeControl(IAudioSessionManager2* sessionManager, const
 		SAFE_RELEASE(sessionControl2);
 	}
 	SAFE_RELEASE(sessionEnumerator);
-	return hr;
+	return !found ? E_NOINTERFACE : hr;
 }
 
 HRESULT CoreAudio::EnumerateSessions(IAudioSessionManager2* sessionManager)

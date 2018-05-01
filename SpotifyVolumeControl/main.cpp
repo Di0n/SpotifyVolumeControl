@@ -6,6 +6,7 @@
 #include <gdiplus.h>
 #include "AudioSession.h"
 #include "volumebar.h"
+#include "utils.h"
 #pragma comment(lib, "gdiplus.lib")
 
 #define APP_UNIQUE_NAME "com_anveon_apps_svc"
@@ -23,8 +24,6 @@
 #define VOLUME_DOWN_ID 2
 #define TIMER_ID 1
 
-typedef int Key;
-typedef int ModifierKey;
 
 using namespace Gdiplus;
 using std::string;
@@ -188,6 +187,7 @@ void OnHotKeyPressed(WORD keyID)
 	}
 	else return;
 
+	if (Utils::IsFullscreenMaximized(handle)) return;
 	if (!IsWindowVisible(handle))
 		ShowWindow(handle, SW_SHOWNA);
 
@@ -216,3 +216,5 @@ VOID CALLBACK ShowTimer(HWND hwnd, UINT msg, UINT_PTR idEvent, DWORD dwTime)
 	ShowWindow(handle, SW_HIDE);
 	KillTimer(handle, idEvent);
 }
+
+
