@@ -187,7 +187,11 @@ void OnHotKeyPressed(WORD keyID)
 	}
 	else return;
 
-	if (Utils::IsFullscreenMaximized(handle)) return;
+	HWND processHandle = GetForegroundWindow();
+	if (processHandle != NULL)
+		if (Utils::IsFullscreenMaximized(processHandle))
+			return;
+
 	if (!IsWindowVisible(handle))
 		ShowWindow(handle, SW_SHOWNA);
 
