@@ -61,7 +61,7 @@ int CALLBACK WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpArg, 
 	{
 		MessageBox(NULL, _T("There is already an instance running of Spotify Volume Control."), SZ_WINDOW_CLASS, MB_OK | MB_ICONINFORMATION);
 		std::cerr << "There is already an instance running of Spotify Volume Control.\n";
-		return 0;
+		return 1;
 	}
 
 	CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
