@@ -111,6 +111,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="CMMNotificationClient.cpp" />
     <ClCompile Include="coreaudio.cpp" />
     <ClCompile Include="Keyboard.cpp" />
     <ClCompile Include="main.cpp" />
@@ -119,6 +120,7 @@
     <ClCompile Include="volumebar.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="CMMNotificationClient.h" />
     <ClInclude Include="coreaudio.h" />
     <ClInclude Include="AudioSession.h" />
     <ClInclude Include="Keyboard.h" />
